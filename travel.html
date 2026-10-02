@@ -1,0 +1,1163 @@
+<!DOCTYPE html>
+<html lang="zh-HK" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>TRAVEL - 旅遊隨行計畫</title>
+    
+    <!-- PWA Web App Meta Tags -->
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="theme-color" content="#0d0f12">
+
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;600;700;800&family=Noto+Sans+TC:wght@300;400;500;700;900&display=swap" rel="stylesheet">
+    <!-- Leaflet.js Interactive Maps -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        brand: {
+                            orange: '#ff6b00',
+                            blue: '#38bdf8',
+                            green: '#10b981',
+                            purple: '#a855f7',
+                            dark: '#0d0f12',
+                            card: '#161b22',
+                            border: '#21262d',
+                            hover: '#30363d'
+                        }
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'Noto Sans TC', 'sans-serif'],
+                        mono: ['JetBrains Mono', 'monospace'],
+                    }
+                }
+            }
+        }
+    </script>
+
+    <style>
+        body {
+            font-family: 'Inter', 'Noto Sans TC', sans-serif;
+            background-color: #0d0f12;
+            color: #f0f6fc;
+            touch-action: manipulation;
+        }
+
+        /* Boarding Pass Ticket Cutouts */
+        .ticket-card {
+            position: relative;
+            background-color: #161b22;
+            border: 1px solid #21262d;
+            border-radius: 1rem;
+        }
+        
+        .ticket-notch-left {
+            position: absolute;
+            width: 20px;
+            height: 20px;
+            background-color: #0d0f12;
+            border-radius: 50%;
+            left: -11px;
+            top: 50%;
+            transform: translateY(-50%);
+            border-right: 1px solid #21262d;
+            z-index: 10;
+        }
+
+        .ticket-notch-right {
+            position: absolute;
+            width: 20px;
+            height: 20px;
+            background-color: #0d0f12;
+            border-radius: 50%;
+            right: -11px;
+            top: 50%;
+            transform: translateY(-50%);
+            border-left: 1px solid #21262d;
+            z-index: 10;
+        }
+
+        .barcode-pattern {
+            background: repeating-linear-gradient(
+                90deg,
+                #8b949e,
+                #8b949e 2px,
+                transparent 2px,
+                transparent 5px,
+                #8b949e 5px,
+                #8b949e 9px
+            );
+        }
+
+        .hide-scrollbar::-webkit-scrollbar { display: none; }
+        .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+        .glass-panel {
+            background: rgba(22, 27, 34, 0.85);
+            backdrop-filter: blur(12px);
+        }
+
+        #leaflet-map {
+            width: 100%;
+            height: 380px;
+            border-radius: 1rem;
+            z-index: 1;
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col justify-between selection:bg-brand-orange selection:text-black pb-20 md:pb-12">
+
+    <header class="sticky top-0 z-40 glass-panel border-b border-brand-border">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex items-center justify-between h-16">
+                <!-- Clean Brand Title -->
+                <div class="flex items-center gap-3 cursor-pointer" onclick="window.scrollTo({top:0, behavior:'smooth'})">
+                    <div class="w-10 h-10 bg-gradient-to-br from-brand-orange to-amber-600 text-black rounded-xl flex items-center justify-center font-black shadow-lg shadow-brand-orange/20">
+                        <i class="fa-solid fa-plane text-lg"></i>
+                    </div>
+                    <div>
+                        <span class="font-mono font-black text-2xl tracking-widest text-white uppercase">TRAVEL</span>
+                    </div>
+                </div>
+
+                <!-- Desktop Navigation Bar -->
+                <nav class="hidden md:flex items-center space-x-1 lg:space-x-2 text-xs font-mono">
+                    <button onclick="scrollToSection('sec-flights')" class="px-3 py-2 rounded-xl text-slate-300 hover:text-brand-orange hover:bg-brand-card transition flex items-center gap-1.5">
+                        <i class="fa-solid fa-plane-departure text-brand-orange"></i>航班
+                    </button>
+                    <button onclick="scrollToSection('sec-map')" class="px-3 py-2 rounded-xl text-slate-300 hover:text-brand-orange hover:bg-brand-card transition flex items-center gap-1.5">
+                        <i class="fa-solid fa-map-location-dot text-brand-blue"></i>地圖
+                    </button>
+                    <button onclick="scrollToSection('sec-itinerary')" class="px-3 py-2 rounded-xl text-slate-300 hover:text-brand-orange hover:bg-brand-card transition flex items-center gap-1.5">
+                        <i class="fa-solid fa-calendar-day text-brand-green"></i>行程
+                    </button>
+                    <button onclick="scrollToSection('sec-saved')" class="px-3 py-2 rounded-xl text-slate-300 hover:text-brand-orange hover:bg-brand-card transition flex items-center gap-1.5">
+                        <i class="fa-solid fa-bookmark text-brand-purple"></i>願望清單
+                    </button>
+                    <button onclick="scrollToSection('sec-ledger')" class="px-3 py-2 rounded-xl text-slate-300 hover:text-brand-orange hover:bg-brand-card transition flex items-center gap-1.5">
+                        <i class="fa-solid fa-wallet text-brand-green"></i>AA分帳
+                    </button>
+                    <button onclick="scrollToSection('sec-prep')" class="px-3 py-2 rounded-xl text-slate-300 hover:text-brand-orange hover:bg-brand-card transition flex items-center gap-1.5">
+                        <i class="fa-solid fa-clipboard-check text-brand-blue"></i>準備
+                    </button>
+                </nav>
+
+                <!-- Data Management Controls -->
+                <div class="flex items-center gap-2">
+                    <button onclick="exportJSON()" class="text-xs bg-brand-card hover:bg-brand-hover border border-brand-border text-slate-200 px-3 py-1.5 rounded-xl transition flex items-center gap-1.5 font-mono" title="匯出 JSON">
+                        <i class="fa-solid fa-download text-brand-orange"></i><span class="hidden sm:inline">匯出</span>
+                    </button>
+                    <label class="text-xs bg-brand-card hover:bg-brand-hover border border-brand-border text-slate-200 px-3 py-1.5 rounded-xl transition flex items-center gap-1.5 font-mono cursor-pointer" title="匯入 JSON">
+                        <i class="fa-solid fa-upload text-brand-blue"></i><span class="hidden sm:inline">匯入</span>
+                        <input type="file" id="json-file-input" accept=".json" class="hidden" onchange="importJSON(event)">
+                    </label>
+                    <button onclick="resetTripData()" class="text-xs bg-rose-950/40 hover:bg-rose-900/60 border border-rose-800/50 text-rose-300 px-2.5 py-1.5 rounded-xl transition" title="重置範例">
+                        <i class="fa-solid fa-rotate-left"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Mobile Floating Navigation Dock -->
+        <div class="md:hidden fixed bottom-0 left-0 right-0 glass-panel border-t border-brand-border z-50 px-2 py-2 flex justify-around items-center text-xs font-mono">
+            <button onclick="scrollToSection('sec-flights')" class="flex flex-col items-center p-1 text-slate-400 hover:text-brand-orange">
+                <i class="fa-solid fa-plane-departure text-base"></i>
+                <span class="text-[9px] mt-0.5">航班</span>
+            </button>
+            <button onclick="scrollToSection('sec-map')" class="flex flex-col items-center p-1 text-slate-400 hover:text-brand-orange">
+                <i class="fa-solid fa-map-location-dot text-base"></i>
+                <span class="text-[9px] mt-0.5">地圖</span>
+            </button>
+            <button onclick="scrollToSection('sec-itinerary')" class="flex flex-col items-center p-1 text-slate-400 hover:text-brand-orange">
+                <i class="fa-solid fa-calendar-day text-base"></i>
+                <span class="text-[9px] mt-0.5">行程</span>
+            </button>
+            <button onclick="scrollToSection('sec-saved')" class="flex flex-col items-center p-1 text-slate-400 hover:text-brand-orange">
+                <i class="fa-solid fa-bookmark text-base"></i>
+                <span class="text-[9px] mt-0.5">願望</span>
+            </button>
+            <button onclick="scrollToSection('sec-ledger')" class="flex flex-col items-center p-1 text-slate-400 hover:text-brand-orange">
+                <i class="fa-solid fa-wallet text-base"></i>
+                <span class="text-[9px] mt-0.5">分帳</span>
+            </button>
+        </div>
+    </header>
+
+    <div class="relative bg-gradient-to-b from-brand-card to-brand-dark border-b border-brand-border py-10">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex flex-col lg:flex-row lg:items-end justify-between gap-6">
+                <div>
+                    <div class="inline-flex items-center gap-2 bg-brand-orange/10 border border-brand-orange/30 text-brand-orange text-xs px-3 py-1 rounded-full font-mono mb-3">
+                        <span class="w-2 h-2 rounded-full bg-brand-orange animate-pulse"></span> PASS ID: #TYO-2026-FUGI
+                    </div>
+                    <h1 class="text-3xl sm:text-4xl font-black text-white tracking-tight flex items-center gap-3">
+                        <span id="trip-header-title">東京・富士山奢華溫泉自駕 6 日遊</span>
+                        <button onclick="editTripTitle()" class="text-xs text-slate-400 hover:text-brand-orange transition" title="編輯名稱"><i class="fa-solid fa-pen"></i></button>
+                    </h1>
+                    <p class="text-xs sm:text-sm text-slate-400 mt-2 font-mono flex flex-wrap items-center gap-3">
+                        <span><i class="fa-regular fa-calendar mr-1.5 text-brand-orange"></i><span id="trip-header-dates">2026-11-10 ～ 2026-11-15</span></span>
+                        <span>•</span>
+                        <span><i class="fa-solid fa-location-dot mr-1.5 text-rose-400"></i>東京, 河口湖, 箱根, 銀座</span>
+                    </p>
+                </div>
+
+                <!-- Live Metrics -->
+                <div class="grid grid-cols-3 gap-3 font-mono text-xs">
+                    <div class="bg-brand-card border border-brand-border p-3.5 rounded-2xl">
+                        <span class="text-[10px] text-slate-400 block uppercase">總天數</span>
+                        <span class="text-xl font-bold text-brand-orange">6 天</span>
+                    </div>
+                    <div class="bg-brand-card border border-brand-border p-3.5 rounded-2xl">
+                        <span class="text-[10px] text-slate-400 block uppercase">預計里程</span>
+                        <span class="text-xl font-bold text-brand-blue">380 km</span>
+                    </div>
+                    <div class="bg-brand-card border border-brand-border p-3.5 rounded-2xl">
+                        <span class="text-[10px] text-slate-400 block uppercase">排定行程</span>
+                        <span id="stat-total-events" class="text-xl font-bold text-brand-green">0 項</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- MAIN CONTENT CONTAINER -->
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-16 flex-grow w-full">
+
+        <section id="sec-flights" class="space-y-6">
+            <div class="flex items-center justify-between border-b border-brand-border pb-4">
+                <div class="flex items-center gap-3">
+                    <div class="w-8 h-8 bg-brand-orange/15 text-brand-orange border border-brand-orange/30 rounded-lg flex items-center justify-center font-mono font-bold text-sm">01</div>
+                    <div>
+                        <h2 class="text-xl font-bold text-white tracking-wide">航班登機證 Flights Pass</h2>
+                        <p class="text-xs text-slate-400">擬真機票款式卡片與航線資料</p>
+                    </div>
+                </div>
+                <button onclick="openFlightModal()" class="text-xs bg-brand-orange hover:bg-orange-600 text-black font-bold px-3.5 py-2 rounded-xl transition flex items-center gap-1.5 shadow-lg shadow-brand-orange/20">
+                    <i class="fa-solid fa-plus"></i> 新增航班
+                </button>
+            </div>
+
+            <div id="flights-list-container" class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <!-- Dynamically populated -->
+            </div>
+        </section>
+
+        <section id="sec-map" class="space-y-6">
+            <div class="flex items-center justify-between border-b border-brand-border pb-4">
+                <div class="flex items-center gap-3">
+                    <div class="w-8 h-8 bg-brand-orange/15 text-brand-orange border border-brand-orange/30 rounded-lg flex items-center justify-center font-mono font-bold text-sm">02</div>
+                    <div>
+                        <h2 class="text-xl font-bold text-white tracking-wide">景點路線地圖 Interactive Map</h2>
+                        <p class="text-xs text-slate-400">實時標記行程景點與願望清單位置</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="bg-brand-card border border-brand-border rounded-2xl p-4">
+                <div id="leaflet-map"></div>
+                <div class="mt-4 flex flex-wrap items-center justify-between gap-2 text-xs font-mono text-slate-400 pt-2 border-t border-brand-border">
+                    <div class="flex items-center gap-4">
+                        <span class="flex items-center gap-1.5"><span class="w-3 h-3 rounded-full bg-brand-orange inline-block"></span> 行程景點</span>
+                        <span class="flex items-center gap-1.5"><span class="w-3 h-3 rounded-full bg-brand-purple inline-block"></span> 收藏願望清單</span>
+                    </div>
+                    <span class="text-[11px] text-slate-500">提示：點擊標記可查看地點詳情</span>
+                </div>
+            </div>
+        </section>
+
+        <section id="sec-itinerary" class="space-y-6">
+            <div class="flex items-center justify-between border-b border-brand-border pb-4">
+                <div class="flex items-center gap-3">
+                    <div class="w-8 h-8 bg-brand-orange/15 text-brand-orange border border-brand-orange/30 rounded-lg flex items-center justify-center font-mono font-bold text-sm">03</div>
+                    <div>
+                        <h2 class="text-xl font-bold text-white tracking-wide">每日行程 Day by Day</h2>
+                        <p class="text-xs text-slate-400">精細時間軸活動與地點導航</p>
+                    </div>
+                </div>
+                <button onclick="openEventModal()" class="text-xs bg-brand-orange hover:bg-orange-600 text-black font-bold px-3.5 py-2 rounded-xl transition flex items-center gap-1.5 shadow-lg shadow-brand-orange/20">
+                    <i class="fa-solid fa-plus"></i> 新增行程
+                </button>
+            </div>
+
+            <div id="day-tabs-container" class="flex items-center gap-2 overflow-x-auto pb-2 hide-scrollbar">
+                <!-- Day Tabs JS -->
+            </div>
+
+            <div class="bg-brand-card border border-brand-border rounded-2xl p-6">
+                <div class="flex justify-between items-center mb-6 border-b border-brand-border pb-4">
+                    <div>
+                        <h3 class="text-lg font-bold text-white flex items-center gap-2" id="active-day-heading">
+                            DAY 1 行程安排
+                        </h3>
+                        <p class="text-xs text-slate-400 font-mono mt-0.5" id="active-day-subheading">2026-11-10</p>
+                    </div>
+                    <span id="active-day-badge" class="text-xs font-mono bg-brand-orange/10 border border-brand-orange/30 text-brand-orange px-3 py-1 rounded-full">0 個景點</span>
+                </div>
+
+                <div id="timeline-events-list" class="relative pl-6 border-l-2 border-brand-border space-y-6">
+                    <!-- Events JS -->
+                </div>
+            </div>
+        </section>
+
+        <section id="sec-saved" class="space-y-6">
+            <div class="flex items-center justify-between border-b border-brand-border pb-4">
+                <div class="flex items-center gap-3">
+                    <div class="w-8 h-8 bg-brand-orange/15 text-brand-orange border border-brand-orange/30 rounded-lg flex items-center justify-center font-mono font-bold text-sm">04</div>
+                    <div>
+                        <h2 class="text-xl font-bold text-white tracking-wide">網上收藏與願望清單 Saved Places</h2>
+                        <p class="text-xs text-slate-400">小紅書/IG/Google Maps 連結與一鍵轉入行程</p>
+                    </div>
+                </div>
+                <button onclick="openSavedPlaceModal()" class="text-xs bg-brand-purple hover:bg-purple-600 text-white font-bold px-3.5 py-2 rounded-xl transition flex items-center gap-1.5 shadow-lg shadow-brand-purple/20">
+                    <i class="fa-solid fa-plus"></i> 新增收藏
+                </button>
+            </div>
+
+            <div id="saved-places-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                <!-- Saved Places JS -->
+            </div>
+        </section>
+
+        <section id="sec-ledger" class="space-y-6">
+            <div class="flex items-center justify-between border-b border-brand-border pb-4">
+                <div class="flex items-center gap-3">
+                    <div class="w-8 h-8 bg-brand-orange/15 text-brand-orange border border-brand-orange/30 rounded-lg flex items-center justify-center font-mono font-bold text-sm">05</div>
+                    <div>
+                        <h2 class="text-xl font-bold text-white tracking-wide">AA制記帳與分帳 Split Ledger</h2>
+                        <p class="text-xs text-slate-400">多成員付款與自動轉帳結算</p>
+                    </div>
+                </div>
+                <button onclick="manageMembersPrompt()" class="text-xs bg-brand-card border border-brand-border hover:bg-brand-hover text-slate-200 px-3 py-1.5 rounded-xl transition font-mono">
+                    <i class="fa-solid fa-users text-brand-blue mr-1"></i>成員管理
+                </button>
+            </div>
+
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <!-- Entry Form -->
+                <div class="bg-brand-card border border-brand-border rounded-2xl p-6 h-fit space-y-4">
+                    <h3 class="font-bold text-white text-base flex items-center gap-2">
+                        <i class="fa-solid fa-receipt text-brand-orange"></i> 記下一筆開銷
+                    </h3>
+                    <form id="ledger-add-form" onsubmit="handleAddLedger(event)" class="space-y-3 text-xs">
+                        <div>
+                            <label class="text-slate-400 block mb-1">項目名稱</label>
+                            <input type="text" id="leg-title" placeholder="例如：敘々苑燒肉晚餐" required class="w-full bg-brand-dark border border-brand-border rounded-xl px-3 py-2 text-white focus:outline-none focus:border-brand-orange">
+                        </div>
+                        <div class="grid grid-cols-2 gap-2">
+                            <div>
+                                <label class="text-slate-400 block mb-1">金額</label>
+                                <input type="number" id="leg-amount" step="0.01" placeholder="0.00" required class="w-full bg-brand-dark border border-brand-border rounded-xl px-3 py-2 text-white focus:outline-none focus:border-brand-orange">
+                            </div>
+                            <div>
+                                <label class="text-slate-400 block mb-1">幣別</label>
+                                <select id="leg-currency" class="w-full bg-brand-dark border border-brand-border rounded-xl px-3 py-2 text-white focus:outline-none focus:border-brand-orange">
+                                    <option value="JPY">JPY 日圓</option>
+                                    <option value="HKD">HKD 港幣</option>
+                                    <option value="TWD">TWD 台幣</option>
+                                    <option value="USD">USD 美元</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div>
+                            <label class="text-slate-400 block mb-1">付款人 (Who Paid)</label>
+                            <select id="leg-payer" class="w-full bg-brand-dark border border-brand-border rounded-xl px-3 py-2 text-white focus:outline-none focus:border-brand-orange">
+                                <!-- Populated dynamically -->
+                            </select>
+                        </div>
+                        <div>
+                            <label class="text-slate-400 block mb-1">分攤成員 (Split Among)</label>
+                            <div id="leg-split-checkboxes" class="flex flex-wrap gap-2 bg-brand-dark p-2.5 rounded-xl border border-brand-border">
+                                <!-- Checkboxes populated JS -->
+                            </div>
+                        </div>
+                        <button type="submit" class="w-full bg-brand-orange hover:bg-orange-600 text-black font-bold py-2.5 rounded-xl transition shadow-lg shadow-brand-orange/20">
+                            新增開支帳目
+                        </button>
+                    </form>
+                </div>
+
+                <!-- Ledger History & Settlement Panel -->
+                <div class="lg:col-span-2 space-y-6">
+                    <!-- Settlement Box -->
+                    <div class="bg-brand-card border border-brand-border rounded-2xl p-6">
+                        <h3 class="font-bold text-white text-base mb-3 flex items-center gap-2">
+                            <i class="fa-solid fa-calculator text-brand-green"></i> 實時結算（誰應該付給誰）
+                        </h3>
+                        <div id="settlement-results" class="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs font-mono">
+                            <!-- Settlement calculations JS -->
+                        </div>
+                    </div>
+
+                    <!-- History Table -->
+                    <div class="bg-brand-card border border-brand-border rounded-2xl p-6">
+                        <div class="flex items-center justify-between mb-4">
+                            <h3 class="font-bold text-white text-base">開支記錄</h3>
+                            <div class="text-right">
+                                <span class="text-xs text-slate-400 block">總計 (折算 HKD)</span>
+                                <span id="ledger-total-hkd-badge" class="text-2xl font-bold font-mono text-brand-orange">$0 HKD</span>
+                            </div>
+                        </div>
+
+                        <div class="overflow-x-auto">
+                            <table class="w-full text-left text-xs font-mono">
+                                <thead class="bg-brand-dark text-slate-400 border-b border-brand-border">
+                                    <tr>
+                                        <th class="py-2.5 px-3">項目</th>
+                                        <th class="py-2.5 px-3">付款人</th>
+                                        <th class="py-2.5 px-3">金額</th>
+                                        <th class="py-2.5 px-3">折算 HKD</th>
+                                        <th class="py-2.5 px-3 text-right">操作</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="ledger-history-tbody" class="divide-y divide-brand-border/60 text-slate-300">
+                                    <!-- Dynamic rows -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section id="sec-prep" class="space-y-6">
+            <div class="flex items-center justify-between border-b border-brand-border pb-4">
+                <div class="flex items-center gap-3">
+                    <div class="w-8 h-8 bg-brand-orange/15 text-brand-orange border border-brand-orange/30 rounded-lg flex items-center justify-center font-mono font-bold text-sm">06</div>
+                    <div>
+                        <h2 class="text-xl font-bold text-white tracking-wide">自駕與行前準備 Drive & Prep</h2>
+                        <p class="text-xs text-slate-400">租車細節與行李打包進度</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Prep Bar -->
+            <div class="bg-brand-card border border-brand-border rounded-2xl p-5 flex flex-col sm:flex-row items-center justify-between gap-4">
+                <div class="flex items-center gap-4 w-full sm:w-auto">
+                    <div class="w-12 h-12 bg-brand-green/10 border border-brand-green/30 rounded-2xl flex items-center justify-center text-brand-green font-bold text-lg font-mono" id="prep-percentage-badge">
+                        0%
+                    </div>
+                    <div>
+                        <h3 class="font-bold text-white text-base">打包完成度</h3>
+                        <p class="text-xs text-slate-400 font-mono" id="prep-ratio-text">0 / 0 項</p>
+                    </div>
+                </div>
+                <div class="w-full sm:w-72 bg-brand-dark h-3 rounded-full overflow-hidden border border-brand-border">
+                    <div id="prep-progress-fill" class="bg-gradient-to-r from-brand-orange via-brand-blue to-brand-green h-full transition-all duration-500" style="width: 0%"></div>
+                </div>
+            </div>
+
+            <div id="prep-grid-container" class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <!-- Checklist JS -->
+            </div>
+        </section>
+
+    </main>
+
+    <!-- MODAL: ADD / EDIT FLIGHT -->
+    <div id="flight-modal" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+        <div class="bg-brand-card border border-brand-border rounded-2xl max-w-lg w-full p-6 shadow-2xl space-y-4 text-xs">
+            <div class="flex justify-between items-center border-b border-brand-border pb-3">
+                <h3 class="font-bold text-base text-white">新增航班登機證</h3>
+                <button onclick="closeFlightModal()" class="text-slate-400 hover:text-white"><i class="fa-solid fa-xmark text-lg"></i></button>
+            </div>
+            <form id="flight-form-el" onsubmit="handleSaveFlight(event)" class="space-y-3">
+                <input type="hidden" id="fl-id">
+                <div class="grid grid-cols-2 gap-2">
+                    <div>
+                        <label class="text-slate-400 block mb-1">航空公司</label>
+                        <input type="text" id="fl-airline" placeholder="國泰航空" required class="w-full bg-brand-dark border border-brand-border rounded-xl px-3 py-2 text-white">
+                    </div>
+                    <div>
+                        <label class="text-slate-400 block mb-1">航班號</label>
+                        <input type="text" id="fl-code" placeholder="CX500" required class="w-full bg-brand-dark border border-brand-border rounded-xl px-3 py-2 text-white font-mono">
+                    </div>
+                </div>
+                <div class="grid grid-cols-2 gap-2">
+                    <div>
+                        <label class="text-slate-400 block mb-1">起飛 (IATA)</label>
+                        <input type="text" id="fl-from" placeholder="HKG" required class="w-full bg-brand-dark border border-brand-border rounded-xl px-3 py-2 text-white font-mono uppercase">
+                    </div>
+                    <div>
+                        <label class="text-slate-400 block mb-1">降落 (IATA)</label>
+                        <input type="text" id="fl-to" placeholder="NRT" required class="w-full bg-brand-dark border border-brand-border rounded-xl px-3 py-2 text-white font-mono uppercase">
+                    </div>
+                </div>
+                <div class="grid grid-cols-2 gap-2">
+                    <div>
+                        <label class="text-slate-400 block mb-1">起飛時間</label>
+                        <input type="text" id="fl-dept-time" placeholder="15:10" required class="w-full bg-brand-dark border border-brand-border rounded-xl px-3 py-2 text-white font-mono">
+                    </div>
+                    <div>
+                        <label class="text-slate-400 block mb-1">降落時間</label>
+                        <input type="text" id="fl-arr-time" placeholder="20:25" required class="w-full bg-brand-dark border border-brand-border rounded-xl px-3 py-2 text-white font-mono">
+                    </div>
+                </div>
+                <div class="grid grid-cols-3 gap-2">
+                    <div>
+                        <label class="text-slate-400 block mb-1">日期</label>
+                        <input type="text" id="fl-date" placeholder="11月10日" class="w-full bg-brand-dark border border-brand-border rounded-xl px-3 py-2 text-white">
+                    </div>
+                    <div>
+                        <label class="text-slate-400 block mb-1">座位 SEAT</label>
+                        <input type="text" id="fl-seat" placeholder="12A" class="w-full bg-brand-dark border border-brand-border rounded-xl px-3 py-2 text-white font-mono">
+                    </div>
+                    <div>
+                        <label class="text-slate-400 block mb-1">門口 GATE</label>
+                        <input type="text" id="fl-gate" placeholder="64" class="w-full bg-brand-dark border border-brand-border rounded-xl px-3 py-2 text-white font-mono">
+                    </div>
+                </div>
+                <div class="flex gap-2 pt-2">
+                    <button type="button" onclick="closeFlightModal()" class="w-1/2 py-2.5 bg-brand-dark text-slate-300 font-bold rounded-xl border border-brand-border">取消</button>
+                    <button type="submit" class="w-1/2 py-2.5 bg-brand-orange text-black font-bold rounded-xl">儲存</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- MODAL: ADD / EDIT EVENT -->
+    <div id="event-modal" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+        <div class="bg-brand-card border border-brand-border rounded-2xl max-w-lg w-full p-6 shadow-2xl space-y-4 text-xs">
+            <div class="flex justify-between items-center border-b border-brand-border pb-3">
+                <h3 class="font-bold text-base text-white">新增行程項目</h3>
+                <button onclick="closeEventModal()" class="text-slate-400 hover:text-white"><i class="fa-solid fa-xmark text-lg"></i></button>
+            </div>
+            <form id="event-form-el" onsubmit="handleSaveEvent(event)" class="space-y-3">
+                <input type="hidden" id="ev-id">
+                <div class="grid grid-cols-2 gap-2">
+                    <div>
+                        <label class="text-slate-400 block mb-1">天數</label>
+                        <select id="ev-day" class="w-full bg-brand-dark border border-brand-border rounded-xl px-3 py-2 text-white">
+                            <option value="1">Day 1</option>
+                            <option value="2">Day 2</option>
+                            <option value="3">Day 3</option>
+                            <option value="4">Day 4</option>
+                            <option value="5">Day 5</option>
+                            <option value="6">Day 6</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="text-slate-400 block mb-1">時間</label>
+                        <input type="text" id="ev-time" placeholder="14:00" required class="w-full bg-brand-dark border border-brand-border rounded-xl px-3 py-2 text-white font-mono">
+                    </div>
+                </div>
+                <div>
+                    <label class="text-slate-400 block mb-1">景點/活動名稱</label>
+                    <input type="text" id="ev-title" placeholder="例如：新倉山淺間公園" required class="w-full bg-brand-dark border border-brand-border rounded-xl px-3 py-2 text-white">
+                </div>
+                <div class="grid grid-cols-2 gap-2">
+                    <div>
+                        <label class="text-slate-400 block mb-1">緯度 (Latitude)</label>
+                        <input type="number" step="any" id="ev-lat" placeholder="35.5013" class="w-full bg-brand-dark border border-brand-border rounded-xl px-3 py-2 text-white font-mono">
+                    </div>
+                    <div>
+                        <label class="text-slate-400 block mb-1">經度 (Longitude)</label>
+                        <input type="number" step="any" id="ev-lng" placeholder="138.8016" class="w-full bg-brand-dark border border-brand-border rounded-xl px-3 py-2 text-white font-mono">
+                    </div>
+                </div>
+                <div>
+                    <label class="text-slate-400 block mb-1">備註說明</label>
+                    <textarea id="ev-notes" rows="2" placeholder="門票資訊、注意事項..." class="w-full bg-brand-dark border border-brand-border rounded-xl px-3 py-2 text-white"></textarea>
+                </div>
+                <div class="flex gap-2 pt-2">
+                    <button type="button" onclick="closeEventModal()" class="w-1/2 py-2.5 bg-brand-dark text-slate-300 font-bold rounded-xl border border-brand-border">取消</button>
+                    <button type="submit" class="w-1/2 py-2.5 bg-brand-orange text-black font-bold rounded-xl">儲存行程</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- MODAL: SAVED PLACE -->
+    <div id="saved-modal" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+        <div class="bg-brand-card border border-brand-border rounded-2xl max-w-lg w-full p-6 shadow-2xl space-y-4 text-xs">
+            <div class="flex justify-between items-center border-b border-brand-border pb-3">
+                <h3 class="font-bold text-base text-white">新增收藏地點/願望清單</h3>
+                <button onclick="closeSavedPlaceModal()" class="text-slate-400 hover:text-white"><i class="fa-solid fa-xmark text-lg"></i></button>
+            </div>
+            <form id="saved-form-el" onsubmit="handleSaveSavedPlace(event)" class="space-y-3">
+                <div>
+                    <label class="text-slate-400 block mb-1">名稱</label>
+                    <input type="text" id="sp-title" placeholder="例如：SHIBUYA SKY 展望台" required class="w-full bg-brand-dark border border-brand-border rounded-xl px-3 py-2 text-white">
+                </div>
+                <div>
+                    <label class="text-slate-400 block mb-1">網頁 / 小紅書 / IG 連結 URL</label>
+                    <input type="url" id="sp-url" placeholder="https://..." class="w-full bg-brand-dark border border-brand-border rounded-xl px-3 py-2 text-white font-mono">
+                </div>
+                <div class="grid grid-cols-2 gap-2">
+                    <div>
+                        <label class="text-slate-400 block mb-1">緯度 (Latitude)</label>
+                        <input type="number" step="any" id="sp-lat" placeholder="35.6580" class="w-full bg-brand-dark border border-brand-border rounded-xl px-3 py-2 text-white font-mono">
+                    </div>
+                    <div>
+                        <label class="text-slate-400 block mb-1">經度 (Longitude)</label>
+                        <input type="number" step="any" id="sp-lng" placeholder="139.7016" class="w-full bg-brand-dark border border-brand-border rounded-xl px-3 py-2 text-white font-mono">
+                    </div>
+                </div>
+                <div>
+                    <label class="text-slate-400 block mb-1">筆記/營業時間</label>
+                    <textarea id="sp-notes" rows="2" placeholder="營業時間 10:00-22:30，日落前1小時最靚..." class="w-full bg-brand-dark border border-brand-border rounded-xl px-3 py-2 text-white"></textarea>
+                </div>
+                <div class="flex gap-2 pt-2">
+                    <button type="button" onclick="closeSavedPlaceModal()" class="w-1/2 py-2.5 bg-brand-dark text-slate-300 font-bold rounded-xl border border-brand-border">取消</button>
+                    <button type="submit" class="w-1/2 py-2.5 bg-brand-purple text-white font-bold rounded-xl">儲存收藏</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        const JPY_RATE = 0.052;
+
+        const initialTripData = {
+            title: "東京・富士山奢華溫泉自駕 6 日遊",
+            dates: "2026-11-10 ～ 2026-11-15",
+            activeDay: 1,
+            members: ["我", "小明", "阿華"],
+            flights: [
+                { id: 'fl-1', airline: '國泰航空 Cathay Pacific', code: 'CX 500', from: 'HKG', to: 'NRT', deptTime: '15:10', arrTime: '20:25', date: '11月10日', seat: '12A / 12B', gate: '64', status: '已發牌登機' },
+                { id: 'fl-2', airline: '國泰航空 Cathay Pacific', code: 'CX 509', from: 'NRT', to: 'HKG', deptTime: '18:30', arrTime: '22:45', date: '11月15日', seat: '15J / 15K', gate: '71', status: '預備回程' }
+            ],
+            events: [
+                { id: 'e-1', day: 1, time: '20:25', title: '抵達東京成田國際機場 (NRT)', lat: 35.77198, lng: 140.39285, notes: '至 Toyota Rent-A-Car 櫃檯憑國際駕照領取 Alphard 車輛。' },
+                { id: 'e-2', day: 1, time: '23:15', title: '入住「風之露台 KUKUNA」溫泉旅館', lat: 35.5103, lng: 138.7728, notes: '包含晚餐與私人富士山露天風呂。' },
+                { id: 'e-3', day: 2, time: '08:30', title: '新倉山淺間公園 (忠靈塔視角)', lat: 35.5013, lng: 138.8016, notes: '拍攝富士山絕景與五重塔。' }
+            ],
+            savedPlaces: [
+                { id: 'sp-1', title: 'SHIBUYA SKY 展望台', url: 'https://www.shibuya-scramble-square.com/sky/', lat: 35.6580, lng: 139.7016, notes: '建議於日落前 1 小時到達拍攝夕陽與夜景。' },
+                { id: 'sp-2', title: '敘々苑 游玄亭 銀座', url: 'https://www.jojoen.co.jp/', lat: 35.6712, lng: 139.7650, notes: '高檔燒肉，已提前線上預約 19:30。' }
+            ],
+            prepItems: [
+                { id: 'p-1', cat: 'documents', title: '香港護照 (正本，6個月以上有效)', checked: true },
+                { id: 'p-2', cat: 'documents', title: '國際駕駛許可證 (IDP 正本)', checked: true },
+                { id: 'p-3', cat: 'electronics', title: '日本 eSIM / 行動電源', checked: false }
+            ],
+            ledger: [
+                { id: 'l-1', title: 'Toyota Alphard 租車 6 天', amount: 85000, currency: 'JPY', payer: '我', sharedBy: ['我', '小明', '阿華'] },
+                { id: 'l-2', title: '風之露台 KUKUNA 溫泉飯店', amount: 120000, currency: 'JPY', payer: '小明', sharedBy: ['我', '小明', '阿華'] }
+            ]
+        };
+
+        let appState = JSON.parse(JSON.stringify(initialTripData));
+        let leafletMap = null;
+        let mapMarkers = [];
+
+        window.onload = function() {
+            loadLocalData();
+            initMap();
+            renderAllSections();
+        };
+
+        function saveLocalData() {
+            localStorage.setItem('travel_app_master_data', JSON.stringify(appState));
+        }
+
+        function loadLocalData() {
+            const saved = localStorage.getItem('travel_app_master_data');
+            if (saved) {
+                try { appState = JSON.parse(saved); } catch(e) { console.error(e); }
+            }
+        }
+
+        function resetTripData() {
+            if (confirm("確定恢復為預設的行程範例？")) {
+                appState = JSON.parse(JSON.stringify(initialTripData));
+                saveLocalData();
+                renderAllSections();
+            }
+        }
+
+        function scrollToSection(id) {
+            document.getElementById(id)?.scrollIntoView({ behavior: 'smooth' });
+        }
+
+        function editTripTitle() {
+            const t = prompt("輸入新的旅行名稱：", appState.title);
+            if (t) { appState.title = t; saveLocalData(); renderAllSections(); }
+        }
+
+        function renderAllSections() {
+            document.getElementById('trip-header-title').innerText = appState.title;
+            document.getElementById('trip-header-dates').innerText = appState.dates;
+            document.getElementById('stat-total-events').innerText = `${appState.events.length} 項`;
+
+            renderFlights();
+            renderDayTabs();
+            renderTimelineEvents();
+            renderSavedPlaces();
+            renderLedger();
+            renderPrepChecklist();
+            updateMapMarkers();
+        }
+
+        function initMap() {
+            leafletMap = L.map('leaflet-map').setView([35.6762, 139.6503], 9);
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                maxZoom: 19,
+                attribution: '© OpenStreetMap'
+            }).addTo(leafletMap);
+        }
+
+        function updateMapMarkers() {
+            if (!leafletMap) return;
+            mapMarkers.forEach(m => leafletMap.removeLayer(m));
+            mapMarkers = [];
+
+            const points = [];
+
+            // Add Events Markers
+            appState.events.forEach(ev => {
+                if (ev.lat && ev.lng) {
+                    const marker = L.marker([ev.lat, ev.lng]).addTo(leafletMap)
+                        .bindPopup(`<b>Day ${ev.day} ${ev.time}</b><br>${ev.title}`);
+                    mapMarkers.push(marker);
+                    points.push([ev.lat, ev.lng]);
+                }
+            });
+
+            // Add Saved Places Markers
+            appState.savedPlaces.forEach(sp => {
+                if (sp.lat && sp.lng) {
+                    const marker = L.circleMarker([sp.lat, sp.lng], { color: '#a855f7', radius: 8 }).addTo(leafletMap)
+                        .bindPopup(`<b>★ 收藏願望</b><br>${sp.title}`);
+                    mapMarkers.push(marker);
+                    points.push([sp.lat, sp.lng]);
+                }
+            });
+
+            if (points.length > 0) {
+                leafletMap.fitBounds(points, { padding: [30, 30] });
+            }
+        }
+
+        function panToLocation(lat, lng) {
+            if (leafletMap && lat && lng) {
+                scrollToSection('sec-map');
+                leafletMap.setView([lat, lng], 14, { animate: true });
+            }
+        }
+
+        function renderFlights() {
+            const container = document.getElementById('flights-list-container');
+            container.innerHTML = appState.flights.map(fl => `
+                <div class="ticket-card p-6 shadow-2xl relative overflow-hidden">
+                    <div class="ticket-notch-left"></div>
+                    <div class="ticket-notch-right"></div>
+
+                    <div class="flex justify-between items-center border-b border-brand-border pb-3 mb-4">
+                        <div class="flex items-center gap-2">
+                            <i class="fa-solid fa-plane text-brand-orange text-sm"></i>
+                            <span class="font-bold text-white text-xs">${fl.airline}</span>
+                            <span class="font-mono text-[10px] bg-brand-dark border border-brand-border text-brand-orange px-2 py-0.5 rounded font-bold">${fl.code}</span>
+                        </div>
+                        <span class="text-[10px] font-mono bg-brand-green/10 border border-brand-green/30 text-brand-green px-2 py-0.5 rounded-full">${fl.status}</span>
+                    </div>
+
+                    <div class="flex items-center justify-between my-4 px-2">
+                        <div>
+                            <span class="text-3xl font-extrabold font-mono text-white tracking-widest">${fl.from}</span>
+                            <span class="text-[11px] text-slate-400 block font-mono mt-0.5">${fl.deptTime}</span>
+                        </div>
+                        <div class="flex-grow flex flex-col items-center px-4">
+                            <span class="text-[10px] font-mono text-slate-500 mb-1">${fl.date}</span>
+                            <div class="w-full relative flex items-center justify-center">
+                                <div class="w-full border-t border-dashed border-brand-border"></div>
+                                <i class="fa-solid fa-plane text-brand-orange absolute text-xs bg-brand-card px-2"></i>
+                            </div>
+                        </div>
+                        <div class="text-right">
+                            <span class="text-3xl font-extrabold font-mono text-brand-orange tracking-widest">${fl.to}</span>
+                            <span class="text-[11px] text-slate-400 block font-mono mt-0.5">${fl.arrTime}</span>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-3 gap-2 bg-brand-dark p-3 rounded-xl border border-brand-border my-4 text-xs font-mono">
+                        <div><span class="text-[9px] text-slate-500 block">SEAT</span><span class="text-white font-bold">${fl.seat || 'TBD'}</span></div>
+                        <div><span class="text-[9px] text-slate-500 block">GATE</span><span class="text-white font-bold">${fl.gate || 'TBD'}</span></div>
+                        <div class="text-right"><span class="text-[9px] text-slate-500 block">CLASS</span><span class="text-brand-orange font-bold">Economy</span></div>
+                    </div>
+
+                    <div class="flex items-center justify-between pt-2 border-t border-brand-border">
+                        <div class="h-5 w-28 barcode-pattern opacity-60 rounded"></div>
+                        <button onclick="deleteFlight('${fl.id}')" class="text-xs text-slate-500 hover:text-rose-400"><i class="fa-solid fa-trash"></i></button>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function openFlightModal() {
+            document.getElementById('flight-form-el').reset();
+            document.getElementById('flight-modal').classList.remove('hidden');
+        }
+        function closeFlightModal() { document.getElementById('flight-modal').classList.add('hidden'); }
+
+        function handleSaveFlight(e) {
+            e.preventDefault();
+            appState.flights.push({
+                id: 'fl-' + Date.now(),
+                airline: document.getElementById('fl-airline').value,
+                code: document.getElementById('fl-code').value,
+                from: document.getElementById('fl-from').value,
+                to: document.getElementById('fl-to').value,
+                deptTime: document.getElementById('fl-dept-time').value,
+                arrTime: document.getElementById('fl-arr-time').value,
+                date: document.getElementById('fl-date').value,
+                seat: document.getElementById('fl-seat').value,
+                gate: document.getElementById('fl-gate').value,
+                status: '已獲確認'
+            });
+            saveLocalData();
+            closeFlightModal();
+            renderFlights();
+        }
+
+        function deleteFlight(id) {
+            if (confirm("確定刪除此航班？")) {
+                appState.flights = appState.flights.filter(f => f.id !== id);
+                saveLocalData();
+                renderFlights();
+            }
+        }
+
+        function renderDayTabs() {
+            const container = document.getElementById('day-tabs-container');
+            container.innerHTML = '';
+            for (let d = 1; d <= 6; d++) {
+                const isActive = appState.activeDay === d;
+                const btn = document.createElement('button');
+                btn.onclick = () => { appState.activeDay = d; renderDayTabs(); renderTimelineEvents(); };
+                btn.className = `px-4 py-2 rounded-xl text-xs font-mono font-bold transition shrink-0 ${isActive ? 'bg-brand-orange text-black' : 'bg-brand-card text-slate-300 border border-brand-border'}`;
+                btn.innerText = `DAY ${d}`;
+                container.appendChild(btn);
+            }
+        }
+
+        function renderTimelineEvents() {
+            const container = document.getElementById('timeline-events-list');
+            const dayEvents = appState.events.filter(e => e.day === appState.activeDay).sort((a,b) => a.time.localeCompare(b.time));
+
+            document.getElementById('active-day-heading').innerText = `DAY ${appState.activeDay} 行程安排`;
+            document.getElementById('active-day-badge').innerText = `${dayEvents.length} 個景點`;
+
+            if (dayEvents.length === 0) {
+                container.innerHTML = `<div class="text-center py-8 text-slate-500 font-mono text-xs">本日尚無行程項目</div>`;
+                return;
+            }
+
+            container.innerHTML = dayEvents.map(ev => `
+                <div class="relative group">
+                    <div class="absolute -left-[31px] top-1.5 w-3.5 h-3.5 rounded-full bg-brand-orange border-2 border-brand-card"></div>
+                    <div class="bg-brand-dark border border-brand-border rounded-xl p-4 space-y-2">
+                        <div class="flex items-center justify-between">
+                            <div class="flex items-center gap-2">
+                                <span class="font-mono text-xs font-bold text-brand-orange bg-brand-card px-2 py-0.5 rounded border border-brand-border">${ev.time}</span>
+                                <h4 class="font-bold text-white text-sm">${ev.title}</h4>
+                            </div>
+                            <div class="flex items-center gap-2">
+                                ${ev.lat ? `<button onclick="panToLocation(${ev.lat}, ${ev.lng})" class="text-xs text-brand-blue hover:underline font-mono"><i class="fa-solid fa-map-pin"></i> 地圖</button>` : ''}
+                                <a href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(ev.title)}" target="_blank" class="text-xs text-brand-blue hover:underline font-mono"><i class="fa-solid fa-location-arrow"></i> 導航</a>
+                                <button onclick="deleteEvent('${ev.id}')" class="text-xs text-slate-500 hover:text-rose-400"><i class="fa-solid fa-trash"></i></button>
+                            </div>
+                        </div>
+                        ${ev.notes ? `<p class="text-xs text-slate-400 bg-brand-card p-2 rounded border border-brand-border/60">${ev.notes}</p>` : ''}
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function openEventModal() {
+            document.getElementById('event-form-el').reset();
+            document.getElementById('ev-day').value = appState.activeDay;
+            document.getElementById('event-modal').classList.remove('hidden');
+        }
+        function closeEventModal() { document.getElementById('event-modal').classList.add('hidden'); }
+
+        function handleSaveEvent(e) {
+            e.preventDefault();
+            appState.events.push({
+                id: 'e-' + Date.now(),
+                day: parseInt(document.getElementById('ev-day').value),
+                time: document.getElementById('ev-time').value,
+                title: document.getElementById('ev-title').value,
+                lat: parseFloat(document.getElementById('ev-lat').value) || null,
+                lng: parseFloat(document.getElementById('ev-lng').value) || null,
+                notes: document.getElementById('ev-notes').value
+            });
+            saveLocalData();
+            closeEventModal();
+            renderTimelineEvents();
+            updateMapMarkers();
+        }
+
+        function deleteEvent(id) {
+            if (confirm("確定刪除此行程？")) {
+                appState.events = appState.events.filter(e => e.id !== id);
+                saveLocalData();
+                renderTimelineEvents();
+                updateMapMarkers();
+            }
+        }
+
+        function renderSavedPlaces() {
+            const container = document.getElementById('saved-places-grid');
+            container.innerHTML = appState.savedPlaces.map(sp => `
+                <div class="bg-brand-card border border-brand-border rounded-2xl p-5 space-y-3 flex flex-col justify-between">
+                    <div>
+                        <div class="flex justify-between items-start">
+                            <h4 class="font-bold text-white text-sm">${sp.title}</h4>
+                            <button onclick="deleteSavedPlace('${sp.id}')" class="text-xs text-slate-500 hover:text-rose-400"><i class="fa-solid fa-xmark"></i></button>
+                        </div>
+                        ${sp.notes ? `<p class="text-xs text-slate-400 mt-2 bg-brand-dark p-2 rounded border border-brand-border">${sp.notes}</p>` : ''}
+                    </div>
+                    <div class="pt-2 border-t border-brand-border flex items-center justify-between text-xs font-mono">
+                        ${sp.url ? `<a href="${sp.url}" target="_blank" class="text-brand-purple hover:underline flex items-center gap-1"><i class="fa-solid fa-link"></i> 開啟網址</a>` : '<span></span>'}
+                        <button onclick="moveToItinerary('${sp.id}')" class="text-brand-orange hover:underline font-bold">+ 加入行程</button>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function openSavedPlaceModal() {
+            document.getElementById('saved-form-el').reset();
+            document.getElementById('saved-modal').classList.remove('hidden');
+        }
+        function closeSavedPlaceModal() { document.getElementById('saved-modal').classList.add('hidden'); }
+
+        function handleSaveSavedPlace(e) {
+            e.preventDefault();
+            appState.savedPlaces.push({
+                id: 'sp-' + Date.now(),
+                title: document.getElementById('sp-title').value,
+                url: document.getElementById('sp-url').value,
+                lat: parseFloat(document.getElementById('sp-lat').value) || null,
+                lng: parseFloat(document.getElementById('sp-lng').value) || null,
+                notes: document.getElementById('sp-notes').value
+            });
+            saveLocalData();
+            closeSavedPlaceModal();
+            renderSavedPlaces();
+            updateMapMarkers();
+        }
+
+        function moveToItinerary(spId) {
+            const sp = appState.savedPlaces.find(s => s.id === spId);
+            if (!sp) return;
+            const targetDay = prompt(`將「${sp.title}」加入至第幾天行程？(1-6)`, appState.activeDay);
+            if (targetDay && targetDay >= 1 && targetDay <= 6) {
+                appState.events.push({
+                    id: 'e-' + Date.now(),
+                    day: parseInt(targetDay),
+                    time: '12:00',
+                    title: sp.title,
+                    lat: sp.lat,
+                    lng: sp.lng,
+                    notes: sp.notes
+                });
+                saveLocalData();
+                renderTimelineEvents();
+                updateMapMarkers();
+                alert(`🎉 已成功加入 Day ${targetDay} 行程！`);
+            }
+        }
+
+        function deleteSavedPlace(id) {
+            appState.savedPlaces = appState.savedPlaces.filter(s => s.id !== id);
+            saveLocalData();
+            renderSavedPlaces();
+            updateMapMarkers();
+        }
+
+        function manageMembersPrompt() {
+            const mStr = prompt("請輸入同行成員名稱，用逗號分隔：", appState.members.join(', '));
+            if (mStr) {
+                appState.members = mStr.split(',').map(s => s.trim()).filter(Boolean);
+                saveLocalData();
+                renderLedger();
+            }
+        }
+
+        function renderLedger() {
+            // Populate Payer Select
+            const payerSelect = document.getElementById('leg-payer');
+            payerSelect.innerHTML = appState.members.map(m => `<option value="${m}">${m}</option>`).join('');
+
+            // Populate Checkboxes
+            const cbContainer = document.getElementById('leg-split-checkboxes');
+            cbContainer.innerHTML = appState.members.map(m => `
+                <label class="flex items-center gap-1.5 cursor-pointer text-xs text-slate-300">
+                    <input type="checkbox" name="split-member" value="${m}" checked class="accent-brand-orange">
+                    ${m}
+                </label>
+            `).join('');
+
+            // Render History
+            const tbody = document.getElementById('ledger-history-tbody');
+            tbody.innerHTML = '';
+            let totalHKD = 0;
+
+            appState.ledger.forEach(item => {
+                const rate = item.currency === 'JPY' ? JPY_RATE : (item.currency === 'USD' ? 7.82 : 1);
+                const hkd = item.amount * rate;
+                totalHKD += hkd;
+
+                const tr = document.createElement('tr');
+                tr.className = "hover:bg-brand-dark/50 border-b border-brand-border/40";
+                tr.innerHTML = `
+                    <td class="py-2 px-3 font-bold text-white">${item.title}</td>
+                    <td class="py-2 px-3 text-brand-orange">${item.payer}</td>
+                    <td class="py-2 px-3">${item.amount.toLocaleString()} ${item.currency}</td>
+                    <td class="py-2 px-3 font-bold">$${hkd.toFixed(1)}</td>
+                    <td class="py-2 px-3 text-right">
+                        <button onclick="deleteLedger('${item.id}')" class="text-slate-500 hover:text-rose-400"><i class="fa-solid fa-trash"></i></button>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+
+            document.getElementById('ledger-total-hkd-badge').innerText = `$${totalHKD.toLocaleString(undefined, {maximumFractionDigits:0})} HKD`;
+
+            calculateSettlements();
+        }
+
+        function calculateSettlements() {
+            const container = document.getElementById('settlement-results');
+            const balances = {};
+            appState.members.forEach(m => balances[m] = 0);
+
+            appState.ledger.forEach(item => {
+                const rate = item.currency === 'JPY' ? JPY_RATE : (item.currency === 'USD' ? 7.82 : 1);
+                const hkd = item.amount * rate;
+                const sharedList = item.sharedBy && item.sharedBy.length > 0 ? item.sharedBy : appState.members;
+                const splitAmount = hkd / sharedList.length;
+
+                if (balances[item.payer] !== undefined) balances[item.payer] += hkd;
+                sharedList.forEach(m => {
+                    if (balances[m] !== undefined) balances[m] -= splitAmount;
+                });
+            });
+
+            const debtors = [];
+            const creditors = [];
+
+            Object.keys(balances).forEach(m => {
+                if (balances[m] < -1) debtors.push({ name: m, amount: -balances[m] });
+                else if (balances[m] > 1) creditors.push({ name: m, amount: balances[m] });
+            });
+
+            const settlements = [];
+            let i = 0, j = 0;
+            while (i < debtors.length && j < creditors.length) {
+                const pay = Math.min(debtors[i].amount, creditors[j].amount);
+                settlements.push(`${debtors[i].name} 應付給 ${creditors[j].name}：<b>$${pay.toFixed(0)} HKD</b>`);
+                debtors[i].amount -= pay;
+                creditors[j].amount -= pay;
+                if (debtors[i].amount < 1) i++;
+                if (creditors[j].amount < 1) j++;
+            }
+
+            if (settlements.length === 0) {
+                container.innerHTML = `<p class="text-slate-500 italic col-span-2">目前無須轉帳，帳目平衡！</p>`;
+            } else {
+                container.innerHTML = settlements.map(s => `
+                    <div class="p-2.5 bg-brand-dark rounded-xl border border-brand-border text-slate-200">${s}</div>
+                `).join('');
+            }
+        }
+
+        function handleAddLedger(e) {
+            e.preventDefault();
+            const checkedBoxes = document.querySelectorAll('input[name="split-member"]:checked');
+            const sharedBy = Array.from(checkedBoxes).map(cb => cb.value);
+
+            appState.ledger.push({
+                id: 'l-' + Date.now(),
+                title: document.getElementById('leg-title').value,
+                amount: parseFloat(document.getElementById('leg-amount').value),
+                currency: document.getElementById('leg-currency').value,
+                payer: document.getElementById('leg-payer').value,
+                sharedBy
+            });
+
+            saveLocalData();
+            document.getElementById('ledger-add-form').reset();
+            renderLedger();
+        }
+
+        function deleteLedger(id) {
+            appState.ledger = appState.ledger.filter(l => l.id !== id);
+            saveLocalData();
+            renderLedger();
+        }
+
+        function renderPrepChecklist() {
+            const grid = document.getElementById('prep-grid-container');
+            grid.innerHTML = '';
+            const grandTotal = appState.prepItems.length;
+            let checkedTotal = 0;
+
+            const itemsHtml = appState.prepItems.map(item => {
+                if (item.checked) checkedTotal++;
+                return `
+                    <label class="flex items-center gap-3 p-2.5 bg-brand-card rounded-xl border border-brand-border cursor-pointer">
+                        <input type="checkbox" ${item.checked ? 'checked' : ''} onchange="togglePrep('${item.id}')" class="accent-brand-orange w-4 h-4">
+                        <span class="text-xs ${item.checked ? 'line-through text-slate-500' : 'text-slate-200'}">${item.title}</span>
+                    </label>
+                `;
+            }).join('');
+
+            grid.innerHTML = `<div class="col-span-3 space-y-2">${itemsHtml}</div>`;
+
+            const percentage = grandTotal > 0 ? Math.round((checkedTotal / grandTotal) * 100) : 0;
+            document.getElementById('prep-percentage-badge').innerText = `${percentage}%`;
+            document.getElementById('prep-ratio-text').innerText = `${checkedTotal} / ${grandTotal} 項`;
+            document.getElementById('prep-progress-fill').style.width = `${percentage}%`;
+        }
+
+        function togglePrep(id) {
+            const item = appState.prepItems.find(i => i.id === id);
+            if (item) { item.checked = !item.checked; saveLocalData(); renderPrepChecklist(); }
+        }
+
+        function exportJSON() {
+            const dataStr = JSON.stringify(appState, null, 2);
+            const blob = new Blob([dataStr], { type: "application/json" });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = `TRAVEL_${appState.title.replace(/\s+/g, '_')}.json`;
+            link.click();
+            URL.revokeObjectURL(url);
+        }
+
+        function importJSON(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = function(evt) {
+                try {
+                    const parsed = JSON.parse(evt.target.result);
+                    if (parsed && parsed.events) {
+                        appState = parsed;
+                        saveLocalData();
+                        renderAllSections();
+                        alert("🎉 成功匯入 TRAVEL 行程檔！");
+                    }
+                } catch(err) {
+                    alert("匯入失敗，請檢查檔案格式。");
+                }
+            };
+            reader.readAsText(file);
+        }
+    </script>
+</body>
+</html>
